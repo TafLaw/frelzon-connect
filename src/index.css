@@ -1,0 +1,289 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --blue: oklch(52% 0.24 258);
+  --blue-light: oklch(46% 0.22 258);
+  --blue-dim: oklch(52% 0.24 258 / 0.10);
+  --blue-border: oklch(52% 0.24 258 / 0.25);
+  --green: oklch(50% 0.18 145);
+  --green-dim: oklch(50% 0.18 145 / 0.10);
+  --amber: oklch(58% 0.18 70);
+  --amber-dim: oklch(58% 0.18 70 / 0.10);
+  --red: oklch(52% 0.2 25);
+  --red-dim: oklch(52% 0.2 25 / 0.10);
+
+  --bg:     oklch(99% 0.003 240);
+  --bg2:    oklch(96% 0.005 240);
+  --bg3:    oklch(93% 0.007 240);
+  --border: oklch(0% 0 0 / 0.08);
+  --text:   oklch(14% 0.02 240);
+  --text2:  oklch(38% 0.02 240);
+  --text3:  oklch(58% 0.01 240);
+
+  /* Alias so existing components using --purple still work */
+  --purple:        var(--blue);
+  --purple-light:  var(--blue-light);
+  --purple-dim:    var(--blue-dim);
+  --purple-border: var(--blue-border);
+}
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+input, select, textarea {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  padding: 10px 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus { border-color: var(--blue); }
+
+/* Store catalog search — icon + input share one flex row (avoids mis-centered ⌕ overlay) */
+.catalog-search-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 12px 0 14px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: border-color 0.15s;
+}
+.catalog-search-field:focus-within {
+  border-color: var(--blue);
+}
+.catalog-search-icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  color: var(--text3);
+  line-height: 0;
+}
+.catalog-search-field .catalog-search-input {
+  flex: 1 1 0%;
+  min-width: 0;
+  width: auto;
+  margin: 0;
+  padding: 10px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.catalog-search-field .catalog-search-input:focus {
+  border-color: transparent;
+  outline: none;
+  box-shadow: none;
+}
+input::placeholder { color: var(--text3); }
+select option { background: var(--bg2); color: var(--text); }
+
+@keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* Admin sidebar nav — strip UA chrome that can look like a left bar; keyboard focus ring */
+.admin-nav-tab {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+}
+.admin-nav-tab:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* Storefront footer links */
+footer a[href]:hover {
+  color: var(--blue-light);
+}
+footer a[href]:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* Storefront — mobile-friendly hero + inventory stats */
+.hero-section {
+  padding: 26px 16px 40px;
+  min-height: 0;
+}
+@media (min-width: 640px) {
+  .hero-section {
+    padding: 40px 24px 36px;
+    min-height: clamp(248px, 36vw, 320px);
+  }
+}
+
+.hero-copy {
+  padding-right: 4px;
+}
+@media (min-width: 640px) {
+  .hero-copy {
+    padding-right: clamp(12px, 22vw, 220px);
+  }
+}
+
+.hero-copy .hero-lead {
+  margin-bottom: 18px;
+  line-height: 1.5;
+  font-size: 14px;
+}
+@media (min-width: 640px) {
+  .hero-copy .hero-lead {
+    margin-bottom: 28px;
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 639px) {
+  .hero-phones-layer {
+    bottom: -4% !important;
+    right: -39% !important;
+  }
+
+  /* Raise phones so more of the lineup sits inside the hero (was mostly clipped below). */
+  .hero-phones-img {
+    right: -8% !important;
+    bottom: -6% !important;
+    width: min(132%, 560px) !important;
+    opacity: 0.58 !important;
+    /* Softer bottom mask so raised image isn’t wiped out */
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.35) 24%, #000 48%),
+      linear-gradient(to top, transparent 0%, #000 14%) !important;
+    mask-image: linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.35) 24%, #000 48%),
+      linear-gradient(to top, transparent 0%, #000 14%) !important;
+  }
+}
+
+.hero-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 100%;
+}
+.hero-stats .hero-stat-pill {
+  width: 100%;
+  box-sizing: border-box;
+  justify-content: space-between;
+}
+
+/* Narrow pills so hero phone art shows on the right (column layout only). */
+@media (max-width: 559px) {
+  .hero-stats {
+    align-items: flex-start;
+  }
+  .hero-stats .hero-stat-pill {
+    width: auto;
+    max-width: min(236px, 82vw);
+  }
+}
+
+@media (min-width: 560px) {
+  .hero-stats {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .hero-stats .hero-stat-pill {
+    width: auto;
+    justify-content: flex-start;
+  }
+}
+
+.store-header {
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+@media (max-width: 639px) {
+  .store-header {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Custom status filter (replaces native <select>) */
+.status-filter-trigger:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.status-filter-listbox {
+  max-height: min(70vh, 320px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.status-filter-option {
+  width: 100%;
+  text-align: left;
+  padding: 11px 12px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+}
+.status-filter-option:hover {
+  background: var(--bg3);
+}
+.status-filter-option-active {
+  background: var(--purple-dim) !important;
+  color: var(--purple-light);
+  font-weight: 600;
+}
+.status-filter-option-active:hover {
+  filter: brightness(0.97);
+}
+.status-filter-option:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -1px;
+}
+
+.store-header-inner {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+@media (min-width: 640px) {
+  .store-header-inner {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
+.filter-bar {
+  padding: 12px 16px;
+}
+@media (min-width: 640px) {
+  .filter-bar {
+    padding: 14px 24px;
+  }
+}
+
+.store-main {
+  padding: 24px 16px 32px;
+}
+@media (min-width: 640px) {
+  .store-main {
+    padding: 32px 24px;
+  }
+}
