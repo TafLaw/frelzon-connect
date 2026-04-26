@@ -1,0 +1,2 @@
+# SPA fallback — reseller paths (e.g. /mjiphones) and direct /admin loads must hit the app bundle.
+/*    /index.html   200
