@@ -1557,12 +1557,18 @@ function AdminTabNavButtons({ tab, setTab, useApi, onAfterNavigate }) {
 }
 
 function AdminInventoryStats({ inventory, resellers }) {
+  const sumQty = (status) => inventory
+    .filter((i) => i.status === status)
+    .reduce((acc, i) => acc + (Number(i.qty) || 0), 0)
+  const inStockUnits = sumQty('in-stock')
+  const lowStockUnits = sumQty('low-stock')
+  const soldOutVariants = inventory.filter((i) => i.status === 'sold-out').length
   return (
     <div style={{ fontSize: 11, color: 'var(--text3)', padding: '0 14px', lineHeight: 1.6 }}>
       <p style={{ fontWeight: 600, marginBottom: 4 }}>Inventory</p>
-      <p>{inventory.filter((i) => i.status === 'in-stock').length} in stock</p>
-      <p>{inventory.filter((i) => i.status === 'low-stock').length} low stock</p>
-      <p>{inventory.filter((i) => i.status === 'sold-out').length} sold out</p>
+      <p>{inStockUnits} in stock</p>
+      <p>{lowStockUnits} low stock</p>
+      <p>{soldOutVariants} sold out</p>
       <p style={{ marginTop: 8, fontWeight: 600 }}>{resellers.length} resellers</p>
     </div>
   )

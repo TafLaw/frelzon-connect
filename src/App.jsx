@@ -619,9 +619,13 @@ function StatusFilterDropdown({ value, options, onChange }) {
 // ─── STATS BAR ────────────────────────────────────────────────────────────────
 
 function Stats({ items }) {
-  const inStock = items.filter(i => i.status === 'in-stock').length
-  const low = items.filter(i => i.status === 'low-stock').length
-  const soldOut = items.filter(i => i.status === 'sold-out').length
+  const sumQty = (status) => items
+    .filter((i) => i.status === status)
+    .reduce((acc, i) => acc + (Number(i.qty) || 0), 0)
+  const inStock = sumQty('in-stock')
+  const low = sumQty('low-stock')
+  /** Sold-out rows use qty 0; the meaningful figure is how many variants are unavailable. */
+  const soldOut = items.filter((i) => i.status === 'sold-out').length
   const pills = [
     { label: 'In Stock',  val: inStock, color: 'var(--green)', bg: 'var(--green-dim)' },
     { label: 'Low Stock', val: low,     color: 'var(--amber)', bg: 'var(--amber-dim)' },
