@@ -148,7 +148,7 @@ function ApiAdminLogin({ onSuccess }) {
                 name="password"
                 type="password"
                 autoComplete="current-password"
-                placeholder="Your FoodLoop password"
+                placeholder="Your Frelzon Connect password"
                 value={password}
                 onChange={e => { setPassword(e.target.value); setError('') }}
                 style={{ borderColor: error ? 'var(--red)' : undefined }}
