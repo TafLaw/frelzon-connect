@@ -109,6 +109,157 @@ select option { background: var(--bg2); color: var(--text); }
   outline-offset: 2px;
 }
 
+/* Admin shell — sidebar + main; tables scroll horizontally on narrow screens */
+.admin-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.admin-table-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+.admin-table-scroll > table {
+  min-width: 720px;
+}
+
+.admin-layout {
+  overflow: hidden;
+}
+
+.admin-menu-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text);
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  transition: background 0.15s, border-color 0.15s;
+}
+.admin-menu-toggle:hover {
+  background: var(--bg2);
+}
+.admin-menu-toggle:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.admin-mobile-drawer {
+  position: relative;
+  z-index: 150;
+}
+
+.admin-drawer-backdrop {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 150;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: oklch(0% 0 0 / 0.45);
+  cursor: pointer;
+  display: block;
+}
+
+.admin-drawer-panel {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  z-index: 151;
+  width: min(320px, 92vw);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -10px 0 40px oklch(0% 0 0 / 0.14);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-drawer-nav {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-drawer-actions {
+  flex-shrink: 0;
+  padding: 16px 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-drawer-stats {
+  flex-shrink: 0;
+  padding: 12px 0 20px;
+  border-top: 1px solid var(--border);
+}
+
+@media (min-width: 769px) {
+  .admin-mobile-drawer {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-menu-toggle {
+    display: inline-flex;
+  }
+
+  .admin-header-actions--desktop {
+    display: none !important;
+  }
+
+  .admin-sidebar {
+    display: none !important;
+  }
+
+  .admin-layout {
+    flex-direction: row;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-header {
+    padding: 0 12px !important;
+    height: 56px !important;
+    min-height: 56px;
+    align-items: center !important;
+    flex-wrap: nowrap;
+    position: relative;
+    z-index: 200;
+  }
+
+  .admin-drawer-backdrop,
+  .admin-drawer-panel {
+    top: 56px;
+  }
+
+  .admin-main {
+    padding: 16px 12px 24px !important;
+    min-width: 0;
+    min-height: 0;
+  }
+}
+
 /* Storefront footer links */
 footer a[href]:hover {
   color: var(--blue-light);
@@ -255,6 +406,53 @@ footer a[href]:focus-visible {
   filter: brightness(0.97);
 }
 .status-filter-option:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -1px;
+}
+
+/* Admin panel — AdminSelectDropdown (fixed menu, same interaction model as storefront status filter) */
+.admin-select-trigger:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.admin-select-listbox {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 36px oklch(0% 0 0 / 0.14);
+}
+
+.admin-select-listbox--sm .admin-select-option {
+  font-size: 12px;
+  padding: 8px 10px;
+}
+
+.admin-select-option {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+}
+.admin-select-option:hover {
+  background: var(--bg3);
+}
+.admin-select-option-active {
+  background: var(--purple-dim) !important;
+  color: var(--purple-light);
+  font-weight: 600;
+}
+.admin-select-option-active:hover {
+  filter: brightness(0.97);
+}
+.admin-select-option:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: -1px;
 }

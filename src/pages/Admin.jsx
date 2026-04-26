@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react'
 import { STORAGE_OPTIONS, statusLabel, formatPrice } from '../data'
 import ConnectLogo from '../components/ConnectLogo'
 import iconChecklist from '../assets/icons/checklist.png'
@@ -273,7 +273,164 @@ function Modal({ title, onClose, children, width = 520 }) {
   )
 }
 
+/** Custom select — fixed-position menu avoids iOS native picker bugs and overflow clipping in tables. */
+function AdminSelectDropdown({
+  value,
+  options,
+  onChange,
+  placeholder = 'Select…',
+  size = 'md',
+  disabled = false,
+}) {
+  const [open, setOpen] = useState(false)
+  const [menuRect, setMenuRect] = useState(null)
+  const rootRef = useRef(null)
+  const triggerRef = useRef(null)
+
+  const measure = useCallback(() => {
+    const el = triggerRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    setMenuRect({
+      top: r.bottom + 6,
+      left: r.left,
+      width: Math.max(r.width, 128),
+    })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (open) measure()
+    else setMenuRect(null)
+  }, [open, measure])
+
+  useEffect(() => {
+    if (!open) return
+    function onScroll() {
+      setOpen(false)
+    }
+    function onResize() {
+      measure()
+    }
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onResize)
+    return () => {
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onResize)
+    }
+  }, [open, measure])
+
+  useEffect(() => {
+    if (!open) return
+    function closeIfOutside(e) {
+      if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false)
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', closeIfOutside)
+    document.addEventListener('touchstart', closeIfOutside, { passive: true })
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', closeIfOutside)
+      document.removeEventListener('touchstart', closeIfOutside)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const selected = options.find((o) => o.value === value)
+  const label = selected?.label ?? placeholder
+  const pad = size === 'sm' ? '5px 10px' : '10px 14px'
+  const fontSize = size === 'sm' ? 12 : 14
+  const minW = size === 'sm' ? 104 : 124
+
+  return (
+    <div
+      ref={rootRef}
+      className="admin-select-dropdown"
+      style={{ position: 'relative', flexShrink: 0, zIndex: open ? 300 : undefined }}
+    >
+      <button
+        ref={triggerRef}
+        type="button"
+        className="admin-select-trigger"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => !disabled && setOpen((o) => !o)}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          minWidth: minW,
+          padding: pad,
+          borderRadius: 8,
+          border: '1px solid var(--border)',
+          background: 'var(--bg3)',
+          color: 'var(--text)',
+          fontFamily: 'DM Sans, sans-serif',
+          fontSize,
+          fontWeight: 500,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.55 : 1,
+          width: 'auto',
+        }}
+      >
+        <span style={{
+          textAlign: 'left',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+        >
+          {label}
+        </span>
+        <span aria-hidden style={{ fontSize: 9, opacity: 0.65, flexShrink: 0 }}>▼</span>
+      </button>
+      {open && menuRect && (
+        <ul
+          className={`admin-select-listbox${size === 'sm' ? ' admin-select-listbox--sm' : ''}`}
+          role="listbox"
+          style={{
+            position: 'fixed',
+            top: menuRect.top,
+            left: menuRect.left,
+            width: menuRect.width,
+            margin: 0,
+            padding: 6,
+            listStyle: 'none',
+            maxHeight: 'min(280px, calc(100dvh - 24px))',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          {options.map((opt) => (
+            <li key={opt.value === '' ? '__empty' : String(opt.value)} role="presentation">
+              <button
+                type="button"
+                role="option"
+                aria-selected={opt.value === value}
+                className={
+                  opt.value === value ? 'admin-select-option admin-select-option-active' : 'admin-select-option'
+                }
+                onClick={() => {
+                  onChange(opt.value)
+                  setOpen(false)
+                }}
+              >
+                {opt.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 const STATUS_OPTIONS = ['in-stock', 'low-stock', 'sold-out']
+const INVENTORY_STATUS_SELECT_OPTIONS = STATUS_OPTIONS.map((s) => ({ value: s, label: statusLabel(s) }))
+const STORAGE_SELECT_OPTIONS = STORAGE_OPTIONS.map((s) => ({ value: s, label: s }))
 const statusColor = s =>
   s === 'in-stock' ? 'green' : s === 'low-stock' ? 'amber' : 'red'
 const MAX_INVENTORY_IMAGE_BYTES = 5 * 1024 * 1024
@@ -482,16 +639,27 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
           gap: 12, flexWrap: 'wrap', paddingBottom: 12, marginBottom: 12,
           borderBottom: '1px solid var(--border)',
         }}>
-          <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 320 }}>
-            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', pointerEvents: 'none' }}>⌕</span>
-            <input placeholder="Search model or storage…" value={search}
-              onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
+          <div className="catalog-search-field" style={{ flex: '1 1 220px', maxWidth: 320 }}>
+            <span className="catalog-search-icon" aria-hidden>
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="2.25" />
+                <path d="M16 16l5 5" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" />
+              </svg>
+            </span>
+            <input
+              className="catalog-search-input"
+              type="search"
+              enterKeyHint="search"
+              placeholder="Search model or storage…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
           </div>
           <ABtn primary onClick={() => setShowAdd(true)} disabled={busy}>+ Add Variant</ABtn>
         </div>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div className="admin-table-scroll" style={{ flex: 1, minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)' }}>
@@ -514,11 +682,12 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
                   <td style={{ ...tdStyle, fontFamily: 'DM Mono, monospace' }}>{item.storage}</td>
                   <td style={tdStyle}>
                     {isEditing ? (
-                      <select value={editData.status}
-                        onChange={e => setEditData(d => ({ ...d, status: e.target.value }))}
-                        style={{ padding: '4px 8px', fontSize: 12, width: 'auto' }}>
-                        {STATUS_OPTIONS.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
-                      </select>
+                      <AdminSelectDropdown
+                        value={editData.status}
+                        options={INVENTORY_STATUS_SELECT_OPTIONS}
+                        onChange={(v) => setEditData(d => ({ ...d, status: v }))}
+                        size="sm"
+                      />
                     ) : <Badge color={statusColor(item.status)}>{statusLabel(item.status)}</Badge>}
                   </td>
                   <td style={tdStyle}>
@@ -609,16 +778,18 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
           </FieldRow>
           <FieldRow>
             <FormField label="Storage">
-              <select value={newItem.storage}
-                onChange={e => setNewItem(n => ({ ...n, storage: e.target.value }))}>
-                {STORAGE_OPTIONS.map(s => <option key={s}>{s}</option>)}
-              </select>
+              <AdminSelectDropdown
+                value={newItem.storage}
+                options={STORAGE_SELECT_OPTIONS}
+                onChange={(v) => setNewItem(n => ({ ...n, storage: v }))}
+              />
             </FormField>
             <FormField label="Status">
-              <select value={newItem.status}
-                onChange={e => setNewItem(n => ({ ...n, status: e.target.value }))}>
-                {STATUS_OPTIONS.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
-              </select>
+              <AdminSelectDropdown
+                value={newItem.status}
+                options={INVENTORY_STATUS_SELECT_OPTIONS}
+                onChange={(v) => setNewItem(n => ({ ...n, status: v }))}
+              />
             </FormField>
           </FieldRow>
           <FieldRow>
@@ -788,16 +959,27 @@ function PricingTab({ inventory, basePrices, setBasePrices, useApi, token, reloa
           gap: 12, flexWrap: 'wrap', paddingBottom: 12, marginBottom: 12,
           borderBottom: '1px solid var(--border)',
         }}>
-          <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 320 }}>
-            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', pointerEvents: 'none' }}>⌕</span>
-            <input placeholder="Search model or storage…" value={search}
-              onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
+          <div className="catalog-search-field" style={{ flex: '1 1 220px', maxWidth: 320 }}>
+            <span className="catalog-search-icon" aria-hidden>
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="2.25" />
+                <path d="M16 16l5 5" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" />
+              </svg>
+            </span>
+            <input
+              className="catalog-search-input"
+              type="search"
+              enterKeyHint="search"
+              placeholder="Search model or storage…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
           </div>
           <ABtn primary onClick={() => setShowAdd(true)} disabled={busy}>+ Add Price Entry</ABtn>
         </div>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div className="admin-table-scroll" style={{ flex: 1, minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)' }}>
@@ -874,10 +1056,11 @@ function PricingTab({ inventory, basePrices, setBasePrices, useApi, token, reloa
           </FormField>
           <FieldRow>
             <FormField label="Storage">
-              <select value={newEntry.storage}
-                onChange={e => setNewEntry(n => ({ ...n, storage: e.target.value }))}>
-                {STORAGE_OPTIONS.map(s => <option key={s}>{s}</option>)}
-              </select>
+              <AdminSelectDropdown
+                value={newEntry.storage}
+                options={STORAGE_SELECT_OPTIONS}
+                onChange={(v) => setNewEntry(n => ({ ...n, storage: v }))}
+              />
             </FormField>
             <FormField label="Base Price (R)">
               <input type="number" min="0" step="100" placeholder="15499" value={newEntry.price}
@@ -1026,7 +1209,7 @@ function ResellersTab({ resellers, setResellers, useApi, token, reloadFromApi })
         </div>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div className="admin-table-scroll" style={{ flex: 1, minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <div style={{ display: 'grid', gap: 14 }}>
         {resellers.map((r) => (
           <div key={r.id} style={{
@@ -1163,6 +1346,17 @@ const tdStyle = { padding: '11px 12px', verticalAlign: 'middle' }
 
 const ORDER_STATUSES = ['', 'pending', 'contacted', 'confirmed', 'cancelled']
 const ORDER_TYPES = ['', 'reservation', 'pre-order']
+const ORDER_STATUS_FILTER_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  ...ORDER_STATUSES.filter(Boolean).map((s) => ({ value: s, label: s })),
+]
+const ORDER_TYPE_FILTER_OPTIONS = [
+  { value: '', label: 'All types' },
+  ...ORDER_TYPES.filter(Boolean).map((s) => ({
+    value: s,
+    label: s === 'pre-order' ? 'Pre-order' : s === 'reservation' ? 'Reservation' : s,
+  })),
+]
 
 function OrdersTab({ token }) {
   const [status, setStatus] = useState('')
@@ -1215,18 +1409,20 @@ function OrdersTab({ token }) {
           display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center',
           paddingBottom: 12, marginBottom: 12, borderBottom: '1px solid var(--border)',
         }}>
-          <select value={status} onChange={e => { setPage(1); setStatus(e.target.value) }} style={{ width: 'auto' }}>
-            <option value="">All statuses</option>
-            {ORDER_STATUSES.filter(Boolean).map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select value={type} onChange={e => { setPage(1); setType(e.target.value) }} style={{ width: 'auto' }}>
-            <option value="">All types</option>
-            {ORDER_TYPES.filter(Boolean).map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <AdminSelectDropdown
+            value={status}
+            options={ORDER_STATUS_FILTER_OPTIONS}
+            onChange={(v) => { setPage(1); setStatus(v) }}
+          />
+          <AdminSelectDropdown
+            value={type}
+            options={ORDER_TYPE_FILTER_OPTIONS}
+            onChange={(v) => { setPage(1); setType(v) }}
+          />
           {loading && <span style={{ fontSize: 12, color: 'var(--text3)' }}>Loading…</span>}
         </div>
       </div>
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div className="admin-table-scroll" style={{ flex: 1, minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)' }}>
@@ -1263,18 +1459,16 @@ function OrdersTab({ token }) {
                   </td>
                   <td style={tdStyle}>
                     {nextStatuses.length > 0 ? (
-                      <select
-                        defaultValue=""
-                        onChange={(e) => {
-                          const v = e.target.value
-                          e.target.value = ''
+                      <AdminSelectDropdown
+                        key={`${o.id}-${o.status}`}
+                        value=""
+                        placeholder="Update to…"
+                        options={nextStatuses.map((s) => ({ value: s, label: s }))}
+                        onChange={(v) => {
                           if (v) patchStatus(o.id, v)
                         }}
-                        style={{ padding: '4px 8px', fontSize: 12, width: 'auto' }}
-                      >
-                        <option value="" disabled>Update to…</option>
-                        {nextStatuses.map((s) => <option key={s} value={s}>{s}</option>)}
-                      </select>
+                        size="sm"
+                      />
                     ) : (
                       <span style={{ color: 'var(--text3)', fontSize: 12 }}>—</span>
                     )}
@@ -1307,19 +1501,106 @@ const TABS = [
   { id: 'resellers', label: 'Resellers', iconSrc: iconReseller },
 ]
 
+const adminNavTabBtnStyle = (active) => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 12,
+  padding: '10px 12px',
+  borderRadius: 12,
+  border: '1px solid transparent',
+  cursor: 'pointer',
+  fontFamily: 'DM Sans, sans-serif',
+  fontWeight: active ? 700 : 500,
+  fontSize: 14,
+  textAlign: 'left',
+  width: '100%',
+  transition: 'background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s',
+  background: active ? '#fff' : 'transparent',
+  color: active ? 'var(--text)' : 'var(--text2)',
+  boxShadow: active ? '0 1px 2px oklch(0% 0 0 / 0.06)' : 'none',
+  borderColor: active ? 'var(--border)' : 'transparent',
+})
+
+function AdminTabNavButtons({ tab, setTab, useApi, onAfterNavigate }) {
+  return TABS.filter((t) => t.id !== 'orders' || useApi).map((t) => {
+    const active = tab === t.id
+    return (
+      <button
+        key={t.id}
+        type="button"
+        className="admin-nav-tab"
+        onClick={() => {
+          setTab(t.id)
+          onAfterNavigate?.()
+        }}
+        style={adminNavTabBtnStyle(active)}
+      >
+        <span style={{
+          width: 36,
+          height: 36,
+          borderRadius: 10,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: active ? 'var(--purple-dim)' : 'var(--bg3)',
+          opacity: active ? 1 : 0.95,
+        }}
+        >
+          <img src={t.iconSrc} alt="" width={20} height={20} decoding="async"
+            style={{ objectFit: 'contain', display: 'block' }} />
+        </span>
+        {t.label}
+      </button>
+    )
+  })
+}
+
+function AdminInventoryStats({ inventory, resellers }) {
+  return (
+    <div style={{ fontSize: 11, color: 'var(--text3)', padding: '0 14px', lineHeight: 1.6 }}>
+      <p style={{ fontWeight: 600, marginBottom: 4 }}>Inventory</p>
+      <p>{inventory.filter((i) => i.status === 'in-stock').length} in stock</p>
+      <p>{inventory.filter((i) => i.status === 'low-stock').length} low stock</p>
+      <p>{inventory.filter((i) => i.status === 'sold-out').length} sold out</p>
+      <p style={{ marginTop: 8, fontWeight: 600 }}>{resellers.length} resellers</p>
+    </div>
+  )
+}
+
 function AdminPanel({
   inventory, setInventory, basePrices, setBasePrices, resellers, setResellers,
   onExit, onSignOut, useApi, token, reloadFromApi,
 }) {
   const [tab, setTab] = useState(useApi ? 'orders' : 'inventory')
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), [])
 
   useEffect(() => {
     if (useApi && token) reloadFromApi()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sync admin view on mount / token
   }, [useApi, token])
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return
+    function onKey(e) {
+      if (e.key === 'Escape') setMobileMenuOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [mobileMenuOpen])
+
+  useEffect(() => {
+    function onResize() {
+      if (window.innerWidth > 768 && mobileMenuOpen) setMobileMenuOpen(false)
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [mobileMenuOpen])
+
   return (
-    <div style={{
+    <div className="admin-shell" style={{
       height: '100vh',
       maxHeight: '100dvh',
       display: 'flex',
@@ -1328,13 +1609,30 @@ function AdminPanel({
       overflow: 'hidden',
     }}>
       {/* Header */}
-      <header style={{ background: '#fff', borderBottom: '1px solid var(--border)',
+      <header className="admin-header" style={{ background: '#fff', borderBottom: '1px solid var(--border)',
         padding: '0 24px', height: 60, flexShrink: 0, display: 'flex', alignItems: 'center',
-        justifyContent: 'space-between', zIndex: 50 }}>
-        <div style={{ display: 'flex', alignItems: 'center', color: 'var(--text)' }}>
+        justifyContent: 'space-between', gap: 12, zIndex: 50 }}>
+        <div className="admin-header-brand" style={{ display: 'flex', alignItems: 'center', color: 'var(--text)', minWidth: 0 }}>
           <ConnectLogo height={32} />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button
+          type="button"
+          className="admin-menu-toggle"
+          aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={mobileMenuOpen}
+          onClick={() => setMobileMenuOpen((o) => !o)}
+        >
+          {mobileMenuOpen ? (
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          )}
+        </button>
+        <div className="admin-header-actions admin-header-actions--desktop" style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {useApi && onSignOut && (
             <ABtn onClick={onSignOut}>Sign out</ABtn>
           )}
@@ -1342,58 +1640,54 @@ function AdminPanel({
         </div>
       </header>
 
-      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        {/* Sidebar — fixed column; main area scrolls independently */}
-        <aside style={{ width: 232, background: '#fff', borderRight: '1px solid var(--border)',
-          padding: '16px 10px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6,
-          overflowY: 'auto', alignSelf: 'stretch' }}>
-          {TABS.filter((t) => t.id !== 'orders' || useApi).map(t => {
-            const active = tab === t.id
-            return (
-            <button
-              key={t.id}
-              type="button"
-              className="admin-nav-tab"
-              onClick={() => setTab(t.id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 12,
-                padding: '10px 12px', borderRadius: 12, border: '1px solid transparent',
-                cursor: 'pointer', fontFamily: 'DM Sans, sans-serif',
-                fontWeight: active ? 700 : 500, fontSize: 14,
-                textAlign: 'left', width: '100%', transition: 'background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s',
-                background: active ? '#fff' : 'transparent',
-                color: active ? 'var(--text)' : 'var(--text2)',
-                boxShadow: active ? '0 1px 2px oklch(0% 0 0 / 0.06)' : 'none',
-                borderColor: active ? 'var(--border)' : 'transparent',
-              }}
-            >
-              <span style={{
-                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: active ? 'var(--purple-dim)' : 'var(--bg3)',
-                opacity: active ? 1 : 0.95,
-              }}>
-                <img src={t.iconSrc} alt="" width={20} height={20} decoding="async"
-                  style={{ objectFit: 'contain', display: 'block' }} />
-              </span>
-              {t.label}
-            </button>
-            )
-          })}
-
-          <div style={{ marginTop: 'auto', paddingTop: 24, borderTop: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 11, color: 'var(--text3)', padding: '0 14px', lineHeight: 1.6 }}>
-              <p style={{ fontWeight: 600, marginBottom: 4 }}>Inventory</p>
-              <p>{inventory.filter(i => i.status === 'in-stock').length} in stock</p>
-              <p>{inventory.filter(i => i.status === 'low-stock').length} low stock</p>
-              <p>{inventory.filter(i => i.status === 'sold-out').length} sold out</p>
-              <p style={{ marginTop: 8, fontWeight: 600 }}>{resellers.length} resellers</p>
+      {mobileMenuOpen && (
+        <div className="admin-mobile-drawer" role="presentation">
+          <button
+            type="button"
+            className="admin-drawer-backdrop"
+            aria-label="Close menu"
+            onClick={closeMobileMenu}
+          />
+          <div
+            className="admin-drawer-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Admin menu"
+          >
+            <nav className="admin-drawer-nav" aria-label="Admin sections">
+              <AdminTabNavButtons tab={tab} setTab={setTab} useApi={useApi} onAfterNavigate={closeMobileMenu} />
+            </nav>
+            <div className="admin-drawer-actions">
+              {useApi && onSignOut && (
+                <ABtn full onClick={() => { onSignOut(); closeMobileMenu(); }}>Sign out</ABtn>
+              )}
+              <ABtn full onClick={() => { onExit(); closeMobileMenu(); }}>← Back to Store</ABtn>
             </div>
+            <div className="admin-drawer-stats">
+              <AdminInventoryStats inventory={inventory} resellers={resellers} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="admin-layout" style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+        {/* Sidebar — desktop only; mobile uses hamburger drawer */}
+        <aside className="admin-sidebar" style={{
+          width: 232, background: '#fff', borderRight: '1px solid var(--border)',
+          padding: '16px 10px', flexShrink: 0, display: 'flex', flexDirection: 'column',
+          alignSelf: 'stretch', minHeight: 0,
+        }}>
+          <div className="admin-sidebar-nav">
+            <AdminTabNavButtons tab={tab} setTab={setTab} useApi={useApi} />
+          </div>
+
+          <div className="admin-sidebar-stats" style={{ marginTop: 'auto', paddingTop: 24, borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+            <AdminInventoryStats inventory={inventory} resellers={resellers} />
           </div>
         </aside>
 
         {/* Main content — title fixed; tab body fills height and scrolls internally where needed */}
-        <main style={{
+        <main className="admin-main" style={{
           flex: 1, minWidth: 0, minHeight: 0, padding: '32px 28px',
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
           background: '#fff',
