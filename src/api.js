@@ -160,6 +160,20 @@ export function normalizeInventoryRow(row) {
     qty: row.qty,
     restockIn: row.restock_in ?? row.restockIn ?? null,
     imageUrl: row.image_url ?? row.imageUrl ?? null,
+    rating: row.rating ?? null,
+    reviewCount: row.review_count ?? row.reviewCount ?? 0,
+    compareAtPrice: row.compare_at_price ?? row.compareAtPrice ?? null,
+    isNew: row.is_new ?? row.isNew ?? false,
+    inTheBox: row.in_the_box ?? row.inTheBox ?? null,
+    colors: Array.isArray(row.colors) && row.colors.length > 0
+      ? row.colors
+      : (row.color || row.color_hex || row.colorHex)
+        ? [{ name: row.color || '', hex: row.color_hex || row.colorHex || '#000000' }]
+        : null,
+    color: row.color ?? null,
+    colorHex: row.color_hex ?? row.colorHex ?? null,
+    condition: row.condition ?? null,
+    warranty: row.warranty ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   }
@@ -249,6 +263,12 @@ export async function adminCreateInventory(token, body) {
   const img = typeof imgRaw === 'string' ? imgRaw.trim() : imgRaw
   const imageFile = body.imageFile instanceof File ? body.imageFile : null
 
+  const rating = body.rating != null && body.rating !== '' ? Number(body.rating) : null
+  const reviewCount = body.reviewCount != null && body.reviewCount !== '' ? Number(body.reviewCount) : 0
+  const compareAtPrice = body.compareAtPrice != null && body.compareAtPrice !== '' ? Number(body.compareAtPrice) : null
+  const isNew = body.isNew ?? false
+  const inTheBox = Array.isArray(body.inTheBox) && body.inTheBox.length > 0 ? body.inTheBox : null
+
   let payload
   if (imageFile) {
     payload = new FormData()
@@ -259,6 +279,14 @@ export async function adminCreateInventory(token, body) {
     payload.append('qty', String(Number(body.qty) || 0))
     if (rest != null && rest !== '') payload.append('restock_in', String(rest))
     if (img != null && img !== '') payload.append('image_url', String(img))
+    if (rating != null) payload.append('rating', String(rating))
+    payload.append('review_count', String(reviewCount))
+    if (compareAtPrice != null) payload.append('compare_at_price', String(compareAtPrice))
+    payload.append('is_new', String(isNew))
+    if (inTheBox) payload.append('in_the_box', JSON.stringify(inTheBox))
+    if (Array.isArray(body.colors) && body.colors.length > 0) payload.append('colors', JSON.stringify(body.colors))
+    if (body.condition) payload.append('condition', String(body.condition))
+    if (body.warranty) payload.append('warranty', String(body.warranty))
     payload.append('image', imageFile)
   } else {
     payload = {
@@ -269,6 +297,14 @@ export async function adminCreateInventory(token, body) {
       qty: Number(body.qty) || 0,
       restock_in: rest || null,
       image_url: img || null,
+      rating,
+      review_count: reviewCount,
+      compare_at_price: compareAtPrice,
+      is_new: isNew,
+      in_the_box: inTheBox,
+      colors: Array.isArray(body.colors) && body.colors.length > 0 ? body.colors : null,
+      condition: body.condition || null,
+      warranty: body.warranty || null,
     }
   }
 
@@ -289,12 +325,22 @@ export async function adminPatchInventory(token, id, partial) {
     const u = partial.imageUrl
     patch.image_url = typeof u === 'string' ? (u.trim() || null) : u
   }
+  if (partial.rating !== undefined) patch.rating = partial.rating != null && partial.rating !== '' ? Number(partial.rating) : null
+  if (partial.reviewCount !== undefined) patch.review_count = Number(partial.reviewCount) || 0
+  if (partial.compareAtPrice !== undefined) patch.compare_at_price = partial.compareAtPrice != null && partial.compareAtPrice !== '' ? Number(partial.compareAtPrice) : null
+  if (partial.isNew !== undefined) patch.is_new = Boolean(partial.isNew)
+  if (partial.inTheBox !== undefined) patch.in_the_box = Array.isArray(partial.inTheBox) && partial.inTheBox.length > 0 ? partial.inTheBox : null
+  if (partial.colors !== undefined) patch.colors = Array.isArray(partial.colors) && partial.colors.length > 0 ? partial.colors : null
+  if (partial.condition !== undefined) patch.condition = partial.condition || null
+  if (partial.warranty !== undefined) patch.warranty = partial.warranty || null
 
   let body = patch
   if (imageFile) {
     const form = new FormData()
     Object.entries(patch).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
+      if (key === 'in_the_box' || key === 'colors') {
+        if (value != null) form.append(key, JSON.stringify(value))
+      } else if (value !== undefined && value !== null && value !== '') {
         form.append(key, String(value))
       } else if (value === null) {
         form.append(key, '')

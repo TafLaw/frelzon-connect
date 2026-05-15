@@ -462,6 +462,229 @@ function formatInventoryApiError(err) {
   return err?.message || 'Request failed'
 }
 
+function ColourEditor({ colors, onChange }) {
+  const list = Array.isArray(colors) ? colors : []
+  const add = () => onChange([...list, { name: '', hex: '#000000' }])
+  const remove = (i) => onChange(list.filter((_, j) => j !== i))
+  const update = (i, field, val) => onChange(list.map((c, j) => j === i ? { ...c, [field]: val } : c))
+
+  return (
+    <div>
+      {list.map((c, i) => (
+        <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+          <input
+            placeholder="e.g. Midnight"
+            value={c.name}
+            onChange={e => update(i, 'name', e.target.value)}
+            style={{ flex: 1 }}
+          />
+          <input
+            type="color"
+            value={c.hex || '#000000'}
+            onChange={e => update(i, 'hex', e.target.value)}
+            title="Pick swatch colour"
+            style={{
+              width: 36, height: 36, padding: 2, borderRadius: 8,
+              border: '1px solid var(--border)', cursor: 'pointer',
+              background: 'var(--bg3)', flexShrink: 0,
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            title="Remove"
+            style={{
+              width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 6,
+              background: 'var(--bg3)', cursor: 'pointer', fontSize: 16, lineHeight: 1,
+              color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >×</button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={add}
+        style={{
+          fontSize: 12, fontWeight: 600, color: 'var(--purple-light)',
+          background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+        }}
+      >+ Add colour</button>
+    </div>
+  )
+}
+
+function InventorySectionHeading({ children }) {
+  return (
+    <h4 style={{
+      fontSize: 11,
+      fontWeight: 700,
+      color: 'var(--text3)',
+      textTransform: 'uppercase',
+      letterSpacing: '0.06em',
+      marginTop: 22,
+      marginBottom: 12,
+      paddingBottom: 8,
+      borderBottom: '1px solid var(--border)',
+    }}
+    >
+      {children}
+    </h4>
+  )
+}
+
+/** Stock, image, display, specs — used in the edit-variant dialog (and add flow). */
+function InventoryVariantFormFields({ data, setData, useApi, showStock = true }) {
+  const patch = (partial) => setData((d) => ({ ...d, ...partial }))
+
+  return (
+    <div className="inventory-variant-form-fields">
+      {showStock && (
+        <>
+          <InventorySectionHeading>Stock</InventorySectionHeading>
+          <FieldRow>
+            <FormField label="Status">
+              <AdminSelectDropdown
+                value={data.status}
+                options={INVENTORY_STATUS_SELECT_OPTIONS}
+                onChange={(v) => patch({ status: v })}
+              />
+            </FormField>
+            <FormField label="Quantity">
+              <input
+                type="number"
+                min="0"
+                value={data.qty}
+                onChange={(e) => patch({ qty: e.target.value })}
+              />
+            </FormField>
+          </FieldRow>
+          <FormField label="Restock estimate">
+            <input
+              placeholder="~2 weeks (leave empty if not applicable)"
+              value={data.restockIn}
+              onChange={(e) => patch({ restockIn: e.target.value })}
+            />
+          </FormField>
+        </>
+      )}
+
+      {useApi && (
+        <>
+          <InventorySectionHeading>Image</InventorySectionHeading>
+          <FormField label="Upload (optional)">
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={(e) => patch({ imageFile: e.target.files?.[0] || null })}
+            />
+            <p style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>
+              JPG, PNG, WEBP, or GIF. Max 5MB.
+            </p>
+            {data.imageFile && (
+              <p style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                Selected: {data.imageFile.name}
+              </p>
+            )}
+          </FormField>
+          <FormField label="Image URL (https, optional)">
+            <input
+              placeholder="https://…"
+              value={data.imageUrl}
+              onChange={(e) => patch({ imageUrl: e.target.value })}
+            />
+          </FormField>
+        </>
+      )}
+
+      <InventorySectionHeading>Storefront display</InventorySectionHeading>
+      <FieldRow>
+        <FormField label="Rating (0–5, optional)">
+          <input
+            type="number"
+            min="0"
+            max="5"
+            step="0.1"
+            placeholder="4.5"
+            value={data.rating}
+            onChange={(e) => patch({ rating: e.target.value })}
+          />
+        </FormField>
+        <FormField label="Review count">
+          <input
+            type="number"
+            min="0"
+            placeholder="0"
+            value={data.reviewCount}
+            onChange={(e) => patch({ reviewCount: e.target.value })}
+          />
+        </FormField>
+      </FieldRow>
+      <FieldRow>
+        <FormField label="Was-price / compare (ZAR cents)">
+          <input
+            type="number"
+            min="0"
+            placeholder="e.g. 1899900"
+            value={data.compareAtPrice}
+            onChange={(e) => patch({ compareAtPrice: e.target.value })}
+          />
+        </FormField>
+        <FormField label="Badges">
+          <label style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 14,
+            cursor: 'pointer',
+            marginTop: 6,
+          }}
+          >
+            <input
+              type="checkbox"
+              checked={data.isNew}
+              onChange={(e) => patch({ isNew: e.target.checked })}
+            />
+            Show NEW badge
+          </label>
+        </FormField>
+      </FieldRow>
+
+      <InventorySectionHeading>Specifications</InventorySectionHeading>
+      <FieldRow>
+        <FormField label="Colours">
+          <ColourEditor colors={data.colors} onChange={(v) => patch({ colors: v })} />
+        </FormField>
+        <FormField label="Condition">
+          <input
+            placeholder="Brand New, Factory Sealed"
+            value={data.condition}
+            onChange={(e) => patch({ condition: e.target.value })}
+          />
+        </FormField>
+      </FieldRow>
+      <FormField label="Warranty">
+        <input
+          placeholder="1-Year Apple Warranty"
+          value={data.warranty}
+          onChange={(e) => patch({ warranty: e.target.value })}
+        />
+      </FormField>
+
+      <InventorySectionHeading>In the box</InventorySectionHeading>
+      <FormField label="Items (one per line)">
+        <textarea
+          rows={5}
+          placeholder={'iPhone handset\nUSB-C to USB-C cable\nDocumentation\nFrelzon Connect care card'}
+          value={data.inTheBox}
+          onChange={(e) => patch({ inTheBox: e.target.value })}
+          style={{ width: '100%', resize: 'vertical', fontFamily: 'DM Mono, monospace', fontSize: 12 }}
+        />
+      </FormField>
+    </div>
+  )
+}
+
 // ─── INVENTORY TAB ────────────────────────────────────────────────────────────
 
 function InventoryTab({ inventory, setInventory, basePrices, useApi, token, reloadFromApi }) {
@@ -470,6 +693,8 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
   const [showAdd, setShowAdd] = useState(false)
   const [newItem, setNewItem] = useState({
     series: '', model: '', storage: '128GB', status: 'in-stock', qty: '', restockIn: '', imageUrl: '', imageFile: null,
+    rating: '', reviewCount: '', compareAtPrice: '', isNew: false, inTheBox: '',
+    colors: [], condition: '', warranty: '',
   })
   const [search, setSearch] = useState('')
   const [confirm, setConfirm] = useState(null)
@@ -482,6 +707,7 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
   )
 
   function startEdit(item) {
+    setTabError('')
     setEditId(item.id)
     setEditData({
       status: item.status,
@@ -489,6 +715,20 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
       restockIn: item.restockIn || '',
       imageUrl: item.imageUrl || '',
       imageFile: null,
+      rating: item.rating != null ? String(item.rating) : '',
+      reviewCount: item.reviewCount != null ? String(item.reviewCount) : '',
+      compareAtPrice: item.compareAtPrice != null ? String(item.compareAtPrice) : '',
+      isNew: item.isNew ?? false,
+      inTheBox: Array.isArray(item.inTheBox) && item.inTheBox.length > 0
+        ? item.inTheBox.join('\n')
+        : 'iPhone handset\nUSB-C to USB-C cable\nDocumentation\nFrelzon Connect care card',
+      colors: Array.isArray(item.colors) && item.colors.length > 0
+        ? item.colors
+        : (item.color || item.colorHex)
+          ? [{ name: item.color || '', hex: item.colorHex || '#000000' }]
+          : [],
+      condition: item.condition || 'Brand New, Factory Sealed',
+      warranty: item.warranty || '1-Year Apple Warranty',
     })
   }
 
@@ -515,6 +755,25 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
       const currentImageUrl = current.imageUrl || null
       if (nextImageUrl !== currentImageUrl) patch.imageUrl = nextImageUrl
       if (editData.imageFile) patch.imageFile = editData.imageFile
+      const nextRating = editData.rating !== '' ? Number(editData.rating) : null
+      if (nextRating !== (current.rating ?? null)) patch.rating = nextRating
+      const nextReviewCount = editData.reviewCount !== '' ? Number(editData.reviewCount) : 0
+      if (nextReviewCount !== (current.reviewCount ?? 0)) patch.reviewCount = nextReviewCount
+      const nextCompareAtPrice = editData.compareAtPrice !== '' ? Number(editData.compareAtPrice) : null
+      if (nextCompareAtPrice !== (current.compareAtPrice ?? null)) patch.compareAtPrice = nextCompareAtPrice
+      const nextIsNew = Boolean(editData.isNew)
+      if (nextIsNew !== (current.isNew ?? false)) patch.isNew = nextIsNew
+      const nextInTheBox = editData.inTheBox.trim()
+        ? editData.inTheBox.split('\n').map(s => s.trim()).filter(Boolean)
+        : null
+      const currentInTheBox = Array.isArray(current.inTheBox) ? current.inTheBox : null
+      if (JSON.stringify(nextInTheBox) !== JSON.stringify(currentInTheBox)) patch.inTheBox = nextInTheBox
+      const nextColors = Array.isArray(editData.colors) && editData.colors.length > 0 ? editData.colors : null
+      if (JSON.stringify(nextColors) !== JSON.stringify(current.colors || null)) patch.colors = nextColors
+      const nextCondition = editData.condition.trim() || null
+      if (nextCondition !== (current.condition || null)) patch.condition = nextCondition
+      const nextWarranty = editData.warranty.trim() || null
+      if (nextWarranty !== (current.warranty || null)) patch.warranty = nextWarranty
       if (Object.keys(patch).length === 0) {
         setTabError('No changes to save.')
         return
@@ -538,6 +797,16 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
         qty: Number(editData.qty),
         restockIn: editData.restockIn.trim() || null,
         imageUrl: editData.imageUrl.trim() || null,
+        rating: editData.rating !== '' ? Number(editData.rating) : null,
+        reviewCount: editData.reviewCount !== '' ? Number(editData.reviewCount) : 0,
+        compareAtPrice: editData.compareAtPrice !== '' ? Number(editData.compareAtPrice) : null,
+        isNew: Boolean(editData.isNew),
+        inTheBox: editData.inTheBox.trim()
+          ? editData.inTheBox.split('\n').map(s => s.trim()).filter(Boolean)
+          : null,
+        colors: Array.isArray(editData.colors) && editData.colors.length > 0 ? editData.colors : null,
+        condition: editData.condition.trim() || null,
+        warranty: editData.warranty.trim() || null,
       }
       : i
     ))
@@ -582,6 +851,16 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
           restockIn: newItem.restockIn.trim() || null,
           imageUrl: newItem.imageUrl.trim() || null,
           imageFile: newItem.imageFile || null,
+          rating: newItem.rating !== '' ? Number(newItem.rating) : null,
+          reviewCount: newItem.reviewCount !== '' ? Number(newItem.reviewCount) : 0,
+          compareAtPrice: newItem.compareAtPrice !== '' ? Number(newItem.compareAtPrice) : null,
+          isNew: Boolean(newItem.isNew),
+          inTheBox: newItem.inTheBox.trim()
+            ? newItem.inTheBox.split('\n').map(s => s.trim()).filter(Boolean)
+            : null,
+          colors: Array.isArray(newItem.colors) && newItem.colors.length > 0 ? newItem.colors : null,
+          condition: newItem.condition.trim() || null,
+          warranty: newItem.warranty.trim() || null,
         })
         await reloadFromApi()
         setShowAdd(false)
@@ -594,6 +873,14 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
           restockIn: '',
           imageUrl: '',
           imageFile: null,
+          rating: '',
+          reviewCount: '',
+          compareAtPrice: '',
+          isNew: false,
+          inTheBox: '',
+          colors: [],
+          condition: '',
+          warranty: '',
         })
       } catch (e) {
         setTabError(formatInventoryApiError(e))
@@ -612,6 +899,16 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
       qty: Number(newItem.qty) || 0,
       restockIn: newItem.restockIn.trim() || null,
       imageUrl: newItem.imageUrl.trim() || null,
+      rating: newItem.rating !== '' ? Number(newItem.rating) : null,
+      reviewCount: newItem.reviewCount !== '' ? Number(newItem.reviewCount) : 0,
+      compareAtPrice: newItem.compareAtPrice !== '' ? Number(newItem.compareAtPrice) : null,
+      isNew: Boolean(newItem.isNew),
+      inTheBox: newItem.inTheBox.trim()
+        ? newItem.inTheBox.split('\n').map(s => s.trim()).filter(Boolean)
+        : null,
+      colors: Array.isArray(newItem.colors) && newItem.colors.length > 0 ? newItem.colors : null,
+      condition: newItem.condition.trim() || null,
+      warranty: newItem.warranty.trim() || null,
     }])
     setShowAdd(false)
     setNewItem({
@@ -623,6 +920,14 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
       restockIn: '',
       imageUrl: '',
       imageFile: null,
+      rating: '',
+      reviewCount: '',
+      compareAtPrice: '',
+      isNew: false,
+      inTheBox: '',
+      colors: [],
+      condition: '',
+      warranty: '',
     })
   }
 
@@ -631,7 +936,7 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: 0 }}>
       <div style={{ flexShrink: 0 }}>
-        {tabError && (
+        {tabError && !editId && (
           <p style={{ fontSize: 13, color: 'var(--red)', marginBottom: 12 }}>{tabError}</p>
         )}
         <div style={{
@@ -672,83 +977,36 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
           </thead>
           <tbody>
             {filtered.map(item => {
-              const isEditing = editId === item.id
+              const isOpenInDialog = editId === item.id
               const basePrice = basePrices[`${item.model}|${item.storage}`]
               return (
                 <tr key={item.id} style={{ borderBottom: '1px solid var(--border)',
-                  background: isEditing ? 'var(--purple-dim)' : undefined }}>
+                  background: isOpenInDialog ? 'var(--purple-dim)' : undefined }}>
                   <td style={tdStyle}><span style={{ color: 'var(--text3)' }}>{item.series}</span></td>
                   <td style={{ ...tdStyle, fontWeight: 600 }}>{item.model}</td>
                   <td style={{ ...tdStyle, fontFamily: 'DM Mono, monospace' }}>{item.storage}</td>
                   <td style={tdStyle}>
-                    {isEditing ? (
-                      <AdminSelectDropdown
-                        value={editData.status}
-                        options={INVENTORY_STATUS_SELECT_OPTIONS}
-                        onChange={(v) => setEditData(d => ({ ...d, status: v }))}
-                        size="sm"
-                      />
-                    ) : <Badge color={statusColor(item.status)}>{statusLabel(item.status)}</Badge>}
+                    <Badge color={statusColor(item.status)}>{statusLabel(item.status)}</Badge>
                   </td>
                   <td style={tdStyle}>
-                    {isEditing ? (
-                      <input type="number" min="0" value={editData.qty}
-                        onChange={e => setEditData(d => ({ ...d, qty: e.target.value }))}
-                        style={{ width: 72, padding: '4px 8px', fontSize: 12 }} />
-                    ) : <span style={{ fontFamily: 'DM Mono, monospace' }}>{item.qty}</span>}
+                    <span style={{ fontFamily: 'DM Mono, monospace' }}>{item.qty}</span>
                   </td>
                   <td style={tdStyle}>
-                    {isEditing ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <input placeholder="~2 weeks" value={editData.restockIn}
-                          onChange={e => setEditData(d => ({ ...d, restockIn: e.target.value }))}
-                          style={{ width: 110, padding: '4px 8px', fontSize: 12 }} />
-                        {useApi && (
-                          <>
-                            <input
-                              type="file"
-                              accept="image/jpeg,image/png,image/webp,image/gif"
-                              onChange={e => {
-                                const file = e.target.files?.[0] || null
-                                setEditData(d => ({ ...d, imageFile: file }))
-                              }}
-                              style={{ width: '100%', maxWidth: 220, padding: '4px 8px', fontSize: 11 }}
-                            />
-                            <input placeholder="https://… image_url" value={editData.imageUrl}
-                              onChange={e => setEditData(d => ({ ...d, imageUrl: e.target.value }))}
-                              style={{ width: '100%', maxWidth: 220, padding: '4px 8px', fontSize: 11 }} />
-                            {editData.imageFile && (
-                              <span style={{ color: 'var(--text3)', fontSize: 11 }}>
-                                Upload: {editData.imageFile.name}
-                              </span>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <span style={{ color: 'var(--text3)' }}>{item.restockIn || '—'}</span>
-                        {useApi && item.imageUrl && (
-                          <img src={item.imageUrl} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }} />
-                        )}
-                      </div>
-                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span style={{ color: 'var(--text3)' }}>{item.restockIn || '—'}</span>
+                      {useApi && item.imageUrl && (
+                        <img src={item.imageUrl} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }} />
+                      )}
+                    </div>
                   </td>
                   <td style={{ ...tdStyle, fontFamily: 'DM Mono, monospace' }}>
                     {basePrice ? `R${basePrice.toLocaleString('en-ZA')}` : <span style={{ color: 'var(--text3)' }}>—</span>}
                   </td>
                   <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
-                    {isEditing ? (
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <ABtn primary small onClick={() => saveEdit(item.id)} disabled={busy}>Save</ABtn>
-                        <ABtn small onClick={() => setEditId(null)} disabled={busy}>Cancel</ABtn>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <ABtn small onClick={() => startEdit(item)}>Edit</ABtn>
-                        <ABtn small danger onClick={() => setConfirm(item.id)}>Delete</ABtn>
-                      </div>
-                    )}
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <ABtn small onClick={() => startEdit(item)} disabled={busy}>Edit</ABtn>
+                      <ABtn small danger onClick={() => setConfirm(item.id)} disabled={busy}>Delete</ABtn>
+                    </div>
                   </td>
                 </tr>
               )
@@ -759,6 +1017,42 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
           <p style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text3)' }}>No variants found</p>
         )}
       </div>
+
+      {/* Edit variant modal */}
+      {editId != null && (() => {
+        const editingItem = inventory.find((i) => i.id === editId)
+        if (!editingItem) return null
+        const editBasePrice = basePrices[`${editingItem.model}|${editingItem.storage}`]
+        return (
+          <Modal
+            title="Edit variant"
+            width={640}
+            onClose={() => { setEditId(null); setTabError('') }}
+          >
+            <div style={{ marginTop: -8, marginBottom: 8 }}>
+              <p style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{editingItem.model}</p>
+              <p style={{ fontSize: 13, color: 'var(--text3)' }}>
+                {editingItem.series}
+                {' · '}
+                <span style={{ fontFamily: 'DM Mono, monospace' }}>{editingItem.storage}</span>
+                {editBasePrice ? ` · Base R${editBasePrice.toLocaleString('en-ZA')}` : ''}
+              </p>
+            </div>
+            {tabError && (
+              <p style={{ fontSize: 13, color: 'var(--red)', marginBottom: 16 }}>{tabError}</p>
+            )}
+            <div style={{ marginTop: -8 }}>
+              <InventoryVariantFormFields data={editData} setData={setEditData} useApi={useApi} />
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+              <ABtn onClick={() => { setEditId(null); setTabError('') }} disabled={busy}>Cancel</ABtn>
+              <ABtn primary onClick={() => saveEdit(editId)} disabled={busy}>
+                {busy ? 'Saving…' : 'Save changes'}
+              </ABtn>
+            </div>
+          </Modal>
+        )
+      })()}
 
       {/* Add variant modal */}
       {showAdd && (
@@ -802,32 +1096,7 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
                 onChange={e => setNewItem(n => ({ ...n, restockIn: e.target.value }))} />
             </FormField>
           </FieldRow>
-          {useApi && (
-            <>
-              <FormField label="Image Upload (optional)">
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  onChange={e => {
-                    const file = e.target.files?.[0] || null
-                    setNewItem(n => ({ ...n, imageFile: file }))
-                  }}
-                />
-                <p style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>
-                  JPG, PNG, WEBP, or GIF. Max 5MB.
-                </p>
-                {newItem.imageFile && (
-                  <p style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
-                    Selected: {newItem.imageFile.name}
-                  </p>
-                )}
-              </FormField>
-              <FormField label="Image URL (https, optional)">
-                <input placeholder="https://…" value={newItem.imageUrl}
-                  onChange={e => setNewItem(n => ({ ...n, imageUrl: e.target.value }))} />
-              </FormField>
-            </>
-          )}
+          <InventoryVariantFormFields data={newItem} setData={setNewItem} useApi={useApi} showStock={false} />
           <p style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 16 }}>
             💡 Set the base price for this variant in the <strong>Pricing</strong> tab after adding.
           </p>
@@ -1492,13 +1761,137 @@ function OrdersTab({ token }) {
   )
 }
 
+// ─── SETTINGS TAB ────────────────────────────────────────────────────────────
+
+function SettingsTab({ token }) {
+  const base = getApiBaseUrl()
+  const [enabled, setEnabled] = useState(false)
+  const [message, setMessage] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    fetch(`${base}/api/announcement-bar`)
+      .then(r => r.json())
+      .then(j => { setEnabled(j.data?.enabled ?? false); setMessage(j.data?.message ?? '') })
+      .catch(() => setErr('Failed to load settings'))
+      .finally(() => setLoading(false))
+  }, [base])
+
+  async function handleSave(e) {
+    e.preventDefault()
+    if (!message.trim()) { setErr('Message cannot be empty'); return }
+    setSaving(true); setErr(''); setSaved(false)
+    try {
+      const res = await fetch(`${base}/api/admin/announcement-bar`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ enabled, message }),
+      })
+      if (!res.ok) { const j = await res.json(); throw new Error(j.error || 'Save failed') }
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (e) {
+      setErr(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const inputStyle = {
+    width: '100%', padding: '10px 13px', borderRadius: 10,
+    border: '1.5px solid var(--border)', background: 'var(--bg2)',
+    fontSize: 14, color: 'var(--text)', fontFamily: 'DM Sans, sans-serif',
+    outline: 'none', boxSizing: 'border-box',
+  }
+
+  return (
+    <div style={{ padding: '28px 32px', overflowY: 'auto', flex: 1 }}>
+      <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 24 }}>Settings</h2>
+
+      {loading ? (
+        <p style={{ color: 'var(--text2)', fontSize: 14 }}>Loading…</p>
+      ) : (
+        <form onSubmit={handleSave} style={{ maxWidth: 520 }}>
+          {/* Announcement bar card */}
+          <div style={{
+            background: 'var(--bg2)', border: '1px solid var(--border)',
+            borderRadius: 14, padding: '22px 24px', marginBottom: 16,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <div>
+                <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 3 }}>Announcement Bar</p>
+                <p style={{ fontSize: 13, color: 'var(--text2)' }}>Shown at the top of the storefront.</p>
+              </div>
+              {/* Toggle */}
+              <button
+                type="button"
+                onClick={() => setEnabled(v => !v)}
+                style={{
+                  width: 44, height: 24, borderRadius: 999, position: 'relative',
+                  background: enabled ? 'var(--purple)' : 'var(--border)',
+                  border: 'none', cursor: 'pointer', transition: 'background 0.2s', flexShrink: 0,
+                }}
+              >
+                <span style={{
+                  position: 'absolute', top: 3, left: enabled ? 23 : 3,
+                  width: 18, height: 18, borderRadius: '50%', background: '#fff',
+                  transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                }} />
+              </button>
+            </div>
+
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', display: 'block', marginBottom: 6 }}>
+              Message
+            </label>
+            <input
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              placeholder="e.g. Free delivery on all orders this weekend!"
+              style={inputStyle}
+              onFocus={e => e.target.style.borderColor = 'var(--purple)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            />
+          </div>
+
+          {err && <p style={{ fontSize: 13, color: 'var(--red)', marginBottom: 12 }}>{err}</p>}
+
+          <button
+            type="submit"
+            disabled={saving}
+            style={{
+              padding: '10px 24px', borderRadius: 10,
+              background: saved ? '#16A34A' : 'var(--purple)',
+              color: '#fff', fontWeight: 700, fontSize: 14,
+              cursor: saving ? 'not-allowed' : 'pointer', border: 'none',
+              opacity: saving ? 0.7 : 1, transition: 'background 0.2s',
+            }}
+          >
+            {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save changes'}
+          </button>
+        </form>
+      )}
+    </div>
+  )
+}
+
 // ─── ADMIN PANEL ─────────────────────────────────────────────────────────────
+
+const SettingsIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+  </svg>
+)
 
 const TABS = [
   { id: 'orders',    label: 'Orders',    iconSrc: iconChecklist },
   { id: 'inventory', label: 'Inventory', iconSrc: iconAvailable },
   { id: 'pricing',   label: 'Pricing',   iconSrc: iconPriceTag },
   { id: 'resellers', label: 'Resellers', iconSrc: iconReseller },
+  { id: 'settings',  label: 'Settings',  iconEl: <SettingsIcon /> },
 ]
 
 const adminNavTabBtnStyle = (active) => ({
@@ -1547,8 +1940,10 @@ function AdminTabNavButtons({ tab, setTab, useApi, onAfterNavigate }) {
           opacity: active ? 1 : 0.95,
         }}
         >
-          <img src={t.iconSrc} alt="" width={20} height={20} decoding="async"
-            style={{ objectFit: 'contain', display: 'block' }} />
+          {t.iconEl
+            ? <span style={{ color: active ? 'var(--purple)' : 'var(--text2)', display: 'flex' }}>{t.iconEl}</span>
+            : <img src={t.iconSrc} alt="" width={20} height={20} decoding="async" style={{ objectFit: 'contain', display: 'block' }} />
+          }
         </span>
         {t.label}
       </button>
@@ -1707,6 +2102,7 @@ function AdminPanel({
               {tab === 'inventory' && 'Manage stock levels, availability, and restock estimates.'}
               {tab === 'pricing'   && 'Set base prices for each model and storage variant.'}
               {tab === 'resellers' && 'Manage your reseller network and their markup rates.'}
+              {tab === 'settings'  && 'Control storefront appearance and announcements.'}
             </p>
           </div>
 
@@ -1731,6 +2127,9 @@ function AdminPanel({
                 resellers={resellers} setResellers={setResellers}
                 useApi={useApi} token={token} reloadFromApi={reloadFromApi}
               />
+            )}
+            {tab === 'settings' && (
+              <SettingsTab token={token} />
             )}
           </div>
         </main>

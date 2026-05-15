@@ -127,6 +127,10 @@ select option { background: var(--bg2); color: var(--text); }
   min-width: 720px;
 }
 
+.inventory-variant-form-fields h4:first-of-type {
+  margin-top: 0;
+}
+
 .admin-layout {
   overflow: hidden;
 }
