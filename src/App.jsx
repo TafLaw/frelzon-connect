@@ -9,6 +9,7 @@ import {
   fetchInventoryList, fetchPricesPublic, fetchResellersPublic, createFrelzonOrder,
 } from './api'
 import Admin from './pages/Admin'
+import RandomWinner from './pages/RandomWinner'
 import ConnectLogo from './components/ConnectLogo'
 import phonesLineup from './assets/phones-lineup.png'
 import iconTiktok from './assets/icons/tiktok.png'
@@ -712,6 +713,13 @@ function modalStyle(maxWidth = 480) {
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
 
+function getPageFromHash() {
+  const hash = window.location.hash
+  if (hash.startsWith('#/admin')) return 'admin'
+  if (hash.startsWith('#/randomwinner')) return 'randomwinner'
+  return 'store'
+}
+
 export default function App() {
   const api = isApiMode()
 
@@ -771,12 +779,10 @@ export default function App() {
   }, [refreshCatalog, filterSeries, filterStatus, searchDebounced])
 
   // ── Routing (hash-based) ──
-  const [page, setPage] = useState(() =>
-    window.location.hash.startsWith('#/admin') ? 'admin' : 'store'
-  )
+  const [page, setPage] = useState(() => getPageFromHash())
 
   useEffect(() => {
-    const onHash = () => setPage(window.location.hash.startsWith('#/admin') ? 'admin' : 'store')
+    const onHash = () => setPage(getPageFromHash())
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
@@ -825,6 +831,14 @@ export default function App() {
         resellers={resellers} setResellers={setResellers}
         useApi={api}
         refreshCatalog={catalogSync}
+        onExit={() => { window.location.hash = ''; setPage('store') }}
+      />
+    )
+  }
+
+  if (page === 'randomwinner') {
+    return (
+      <RandomWinner
         onExit={() => { window.location.hash = ''; setPage('store') }}
       />
     )
