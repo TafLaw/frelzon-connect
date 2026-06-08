@@ -174,6 +174,7 @@ export function normalizeInventoryRow(row) {
     colorHex: row.color_hex ?? row.colorHex ?? null,
     condition: row.condition ?? null,
     warranty: row.warranty ?? null,
+    installmentEligible: row.installment_eligible ?? false,
     created_at: row.created_at,
     updated_at: row.updated_at,
   }
@@ -333,6 +334,7 @@ export async function adminPatchInventory(token, id, partial) {
   if (partial.colors !== undefined) patch.colors = Array.isArray(partial.colors) && partial.colors.length > 0 ? partial.colors : null
   if (partial.condition !== undefined) patch.condition = partial.condition || null
   if (partial.warranty !== undefined) patch.warranty = partial.warranty || null
+  if (partial.installmentEligible !== undefined) patch.installment_eligible = Boolean(partial.installmentEligible)
 
   let body = patch
   if (imageFile) {
@@ -507,6 +509,21 @@ export async function adminPatchOrderStatus(token, orderId, status) {
     method: 'PATCH',
     token,
     body: { status },
+  })
+  return json?.data
+}
+
+export async function adminListFlexiPayApplications(token, status) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : ""
+  const json = await apiJson(`/api/admin/flexipay-applications${qs}`, { token })
+  return Array.isArray(json?.data) ? json.data : []
+}
+
+export async function adminReviewFlexiPayApplication(token, id, { status, admin_notes }) {
+  const json = await apiJson(`/api/admin/flexipay-applications/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    token,
+    body: { status, admin_notes: admin_notes || null },
   })
   return json?.data
 }

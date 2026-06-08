@@ -26,6 +26,8 @@ import {
   adminDeleteReseller,
   adminFetchOrders,
   adminPatchOrderStatus,
+  adminListFlexiPayApplications,
+  adminReviewFlexiPayApplication,
 } from '../api'
 
 // ─── ADMIN SIGN-IN (POST /frelzon-connect/admin/login — JSON: email, password) ─
@@ -648,6 +650,24 @@ function InventoryVariantFormFields({ data, setData, useApi, showStock = true })
             Show NEW badge
           </label>
         </FormField>
+        <FormField label="FlexiPay">
+          <label style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            fontSize: 14, cursor: 'pointer', marginTop: 6,
+          }}>
+            <input
+              type="checkbox"
+              checked={data.installmentEligible}
+              onChange={(e) => patch({ installmentEligible: e.target.checked })}
+            />
+            Eligible for 50% deposit + 3-month plan
+          </label>
+          {data.installmentEligible && (
+            <p style={{ fontSize: 11, color: '#6B7280', marginTop: 4, lineHeight: 1.5 }}>
+              Customers can pay 50% now and the balance over 3 equal monthly instalments.
+            </p>
+          )}
+        </FormField>
       </FieldRow>
 
       <InventorySectionHeading>Specifications</InventorySectionHeading>
@@ -694,7 +714,7 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
   const [newItem, setNewItem] = useState({
     series: '', model: '', storage: '128GB', status: 'in-stock', qty: '', restockIn: '', imageUrl: '', imageFile: null,
     rating: '', reviewCount: '', compareAtPrice: '', isNew: false, inTheBox: '',
-    colors: [], condition: '', warranty: '',
+    colors: [], condition: '', warranty: '', installmentEligible: false,
   })
   const [search, setSearch] = useState('')
   const [confirm, setConfirm] = useState(null)
@@ -729,6 +749,7 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
           : [],
       condition: item.condition || 'Brand New, Factory Sealed',
       warranty: item.warranty || '1-Year Apple Warranty',
+      installmentEligible: item.installmentEligible ?? false,
     })
   }
 
@@ -774,6 +795,8 @@ function InventoryTab({ inventory, setInventory, basePrices, useApi, token, relo
       if (nextCondition !== (current.condition || null)) patch.condition = nextCondition
       const nextWarranty = editData.warranty.trim() || null
       if (nextWarranty !== (current.warranty || null)) patch.warranty = nextWarranty
+      const nextInstallmentEligible = Boolean(editData.installmentEligible)
+      if (nextInstallmentEligible !== Boolean(current.installmentEligible ?? false)) patch.installmentEligible = nextInstallmentEligible
       if (Object.keys(patch).length === 0) {
         setTabError('No changes to save.')
         return
@@ -1761,6 +1784,143 @@ function OrdersTab({ token }) {
   )
 }
 
+// ─── FLEXIPAY TAB ────────────────────────────────────────────────────────────
+
+const STATUS_COLORS = {
+  pending:  { bg: '#FEF9C3', color: '#854D0E' },
+  approved: { bg: '#DCFCE7', color: '#166534' },
+  rejected: { bg: '#FEE2E2', color: '#991B1B' },
+}
+
+function FlexiPayTab({ token }) {
+  const [applications, setApplications] = useState([])
+  const [filter, setFilter]             = useState('pending') // 'all' | 'pending' | 'approved' | 'rejected'
+  const [loading, setLoading]           = useState(true)
+  const [error, setError]               = useState('')
+  const [reviewing, setReviewing]       = useState(null) // { app, action: 'approved'|'rejected' }
+  const [notes, setNotes]               = useState('')
+  const [busy, setBusy]                 = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    setError('')
+    adminListFlexiPayApplications(token, filter === 'all' ? undefined : filter)
+      .then(setApplications)
+      .catch(e => setError(e.message || 'Failed to load applications'))
+      .finally(() => setLoading(false))
+  }, [token, filter])
+
+  async function handleReview(app, action) {
+    setBusy(true)
+    try {
+      await adminReviewFlexiPayApplication(token, app.id, { status: action, admin_notes: notes })
+      setApplications(prev => prev.map(a => a.id === app.id ? { ...a, status: action, admin_notes: notes } : a))
+      setReviewing(null)
+      setNotes('')
+    } catch (e) {
+      setError(e.message || 'Review failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const fmt = (cents) => 'R ' + (cents / 100).toLocaleString('en-ZA', { minimumFractionDigits: 0 })
+
+  return (
+    <div style={{ padding: '24px 0', overflowY: 'auto', flex: 1 }}>
+      {/* Filter pills */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        {['pending', 'approved', 'rejected', 'all'].map(f => (
+          <button key={f} onClick={() => setFilter(f)} style={{
+            padding: '6px 16px', borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none',
+            background: filter === f ? 'var(--purple)' : 'var(--bg3)',
+            color: filter === f ? '#fff' : 'var(--text2)',
+          }}>{f.charAt(0).toUpperCase() + f.slice(1)}</button>
+        ))}
+      </div>
+
+      {error && <p style={{ color: '#EF4444', fontSize: 13, marginBottom: 12 }}>{error}</p>}
+      {loading ? (
+        <p style={{ color: 'var(--text3)', fontSize: 14 }}>Loading…</p>
+      ) : applications.length === 0 ? (
+        <p style={{ color: 'var(--text3)', fontSize: 14 }}>No {filter !== 'all' ? filter : ''} applications.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {applications.map(app => {
+            const col = STATUS_COLORS[app.status] || STATUS_COLORS.pending
+            return (
+              <div key={app.id} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '18px 20px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+                      <p style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', margin: 0 }}>{app.full_name}</p>
+                      <span style={{ background: col.bg, color: col.color, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        {app.status}
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '4px 16px', fontSize: 13, color: 'var(--text2)' }}>
+                      <span><strong>Email:</strong> {app.email}</span>
+                      <span><strong>Phone:</strong> {app.phone}</span>
+                      <span><strong>Device:</strong> {app.device_model}</span>
+                      <span><strong>Applied:</strong> {new Date(app.created_at).toLocaleDateString('en-ZA')}</span>
+                    </div>
+                    {app.admin_notes && (
+                      <p style={{ marginTop: 8, fontSize: 12, color: 'var(--text3)', background: 'var(--bg3)', borderRadius: 6, padding: '6px 10px', borderLeft: '3px solid var(--border)' }}>
+                        <strong>Notes:</strong> {app.admin_notes}
+                      </p>
+                    )}
+                  </div>
+                  {app.status === 'pending' && (
+                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                      <button onClick={() => { setReviewing({ app, action: 'approved' }); setNotes('') }} style={{ padding: '8px 16px', borderRadius: 8, background: '#DCFCE7', color: '#166534', fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer' }}>Approve</button>
+                      <button onClick={() => { setReviewing({ app, action: 'rejected' }); setNotes('') }} style={{ padding: '8px 16px', borderRadius: 8, background: '#FEE2E2', color: '#991B1B', fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer' }}>Reject</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Review confirm modal */}
+      {reviewing && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: 'min(460px,100%)', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ fontWeight: 800, fontSize: 17, marginBottom: 8 }}>
+              {reviewing.action === 'approved' ? '✅ Approve' : '❌ Reject'} FlexiPay — {reviewing.app.full_name}
+            </h3>
+            <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>
+              {reviewing.action === 'approved'
+                ? 'The customer will receive a confirmation email and FlexiPay will be unlocked at checkout.'
+                : 'The customer will be notified by email.'}
+            </p>
+            <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 6 }}>Admin notes (optional)</label>
+            <textarea
+              rows={3}
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder={reviewing.action === 'rejected' ? 'Reason shown to customer…' : 'Internal notes…'}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #D1D5DB', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', outline: 'none' }}
+            />
+            <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end' }}>
+              <button onClick={() => setReviewing(null)} disabled={busy} style={{ padding: '10px 20px', borderRadius: 8, border: '1.5px solid #D1D5DB', background: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+              <button
+                onClick={() => handleReview(reviewing.app, reviewing.action)}
+                disabled={busy}
+                style={{ padding: '10px 20px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer',
+                  background: reviewing.action === 'approved' ? '#16A34A' : '#DC2626', color: '#fff' }}
+              >
+                {busy ? 'Saving…' : (reviewing.action === 'approved' ? 'Confirm Approval' : 'Confirm Rejection')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── SETTINGS TAB ────────────────────────────────────────────────────────────
 
 function SettingsTab({ token }) {
@@ -1891,6 +2051,11 @@ const TABS = [
   { id: 'inventory', label: 'Inventory', iconSrc: iconAvailable },
   { id: 'pricing',   label: 'Pricing',   iconSrc: iconPriceTag },
   { id: 'resellers', label: 'Resellers', iconSrc: iconReseller },
+  { id: 'flexipay',  label: 'FlexiPay',  iconEl: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>
+      </svg>
+  )},
   { id: 'settings',  label: 'Settings',  iconEl: <SettingsIcon /> },
 ]
 
@@ -2103,6 +2268,7 @@ function AdminPanel({
               {tab === 'pricing'   && 'Set base prices for each model and storage variant.'}
               {tab === 'resellers' && 'Manage your reseller network and their markup rates.'}
               {tab === 'settings'  && 'Control storefront appearance and announcements.'}
+              {tab === 'flexipay'  && 'Review and approve customer FlexiPay applications.'}
             </p>
           </div>
 
@@ -2127,6 +2293,9 @@ function AdminPanel({
                 resellers={resellers} setResellers={setResellers}
                 useApi={useApi} token={token} reloadFromApi={reloadFromApi}
               />
+            )}
+            {tab === 'flexipay' && (
+              <FlexiPayTab token={token} />
             )}
             {tab === 'settings' && (
               <SettingsTab token={token} />
