@@ -527,3 +527,12 @@ export async function adminReviewFlexiPayApplication(token, id, { status, admin_
   })
   return json?.data
 }
+
+export async function adminCreateFlexiPayApplication(token, data) {
+  const json = await apiJson('/api/admin/flexipay-applications', {
+    method: 'POST',
+    token,
+    body: data,
+  })
+  return json?.data
+}

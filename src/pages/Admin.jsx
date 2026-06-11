@@ -28,6 +28,7 @@ import {
   adminPatchOrderStatus,
   adminListFlexiPayApplications,
   adminReviewFlexiPayApplication,
+  adminCreateFlexiPayApplication,
 } from '../api'
 
 // ─── ADMIN SIGN-IN (POST /frelzon-connect/admin/login — JSON: email, password) ─
@@ -1792,14 +1793,38 @@ const STATUS_COLORS = {
   rejected: { bg: '#FEE2E2', color: '#991B1B' },
 }
 
+const BLANK_NEW_APP = { full_name: '', phone: '', email: '', device_model: '' }
+
 function FlexiPayTab({ token }) {
   const [applications, setApplications] = useState([])
-  const [filter, setFilter]             = useState('pending') // 'all' | 'pending' | 'approved' | 'rejected'
+  const [filter, setFilter]             = useState('pending')
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState('')
-  const [reviewing, setReviewing]       = useState(null) // { app, action: 'approved'|'rejected' }
+  const [reviewing, setReviewing]       = useState(null)
   const [notes, setNotes]               = useState('')
   const [busy, setBusy]                 = useState(false)
+  const [showAddForm, setShowAddForm]   = useState(false)
+  const [newApp, setNewApp]             = useState(BLANK_NEW_APP)
+  const [addBusy, setAddBusy]           = useState(false)
+  const [addError, setAddError]         = useState('')
+
+  function patchNew(k, v) { setNewApp(f => ({ ...f, [k]: v })) }
+
+  async function handleAddSubmit(e) {
+    e.preventDefault()
+    setAddError('')
+    setAddBusy(true)
+    try {
+      const created = await adminCreateFlexiPayApplication(token, newApp)
+      setApplications(prev => [created, ...prev])
+      setNewApp(BLANK_NEW_APP)
+      setShowAddForm(false)
+    } catch (err) {
+      setAddError(err.message || 'Failed to create application')
+    } finally {
+      setAddBusy(false)
+    }
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -1828,16 +1853,56 @@ function FlexiPayTab({ token }) {
 
   return (
     <div style={{ padding: '24px 0', overflowY: 'auto', flex: 1 }}>
-      {/* Filter pills */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {['pending', 'approved', 'rejected', 'all'].map(f => (
-          <button key={f} onClick={() => setFilter(f)} style={{
-            padding: '6px 16px', borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none',
-            background: filter === f ? 'var(--purple)' : 'var(--bg3)',
-            color: filter === f ? '#fff' : 'var(--text2)',
-          }}>{f.charAt(0).toUpperCase() + f.slice(1)}</button>
-        ))}
+      {/* Filter pills + Add button */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {['pending', 'approved', 'rejected', 'all'].map(f => (
+            <button key={f} onClick={() => setFilter(f)} style={{
+              padding: '6px 16px', borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none',
+              background: filter === f ? 'var(--purple)' : 'var(--bg3)',
+              color: filter === f ? '#fff' : 'var(--text2)',
+            }}>{f.charAt(0).toUpperCase() + f.slice(1)}</button>
+          ))}
+        </div>
+        <button
+          onClick={() => { setShowAddForm(v => !v); setAddError('') }}
+          style={{ padding: '8px 18px', borderRadius: 8, background: 'var(--purple)', color: '#fff', fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Add Application
+        </button>
       </div>
+
+      {/* Admin add form */}
+      {showAddForm && (
+        <form onSubmit={handleAddSubmit} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
+          <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>Add FrelPay Application</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 12 }}>
+            {[
+              { key: 'full_name',    label: 'Full name',     type: 'text',  placeholder: 'e.g. Thandi Mokoena' },
+              { key: 'phone',        label: 'Phone number',  type: 'tel',   placeholder: 'e.g. 0712345678' },
+              { key: 'email',        label: 'Email address', type: 'email', placeholder: 'thandi@email.com' },
+              { key: 'device_model', label: 'Device model',  type: 'text',  placeholder: 'e.g. iPhone 16 128GB' },
+            ].map(({ key, label, type, placeholder }) => (
+              <div key={key}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+                <input
+                  required type={type} placeholder={placeholder}
+                  value={newApp[key]}
+                  onChange={e => patchNew(key, e.target.value)}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1.5px solid #D1D5DB', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }}
+                />
+              </div>
+            ))}
+          </div>
+          {addError && <p style={{ fontSize: 13, color: '#EF4444', marginBottom: 10 }}>{addError}</p>}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button type="button" onClick={() => { setShowAddForm(false); setNewApp(BLANK_NEW_APP) }} style={{ padding: '8px 18px', borderRadius: 8, border: '1.5px solid #D1D5DB', background: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+            <button type="submit" disabled={addBusy} style={{ padding: '8px 18px', borderRadius: 8, background: 'var(--purple)', color: '#fff', fontSize: 13, fontWeight: 700, border: 'none', cursor: addBusy ? 'not-allowed' : 'pointer' }}>
+              {addBusy ? 'Saving…' : 'Save Application'}
+            </button>
+          </div>
+        </form>
+      )}
 
       {error && <p style={{ color: '#EF4444', fontSize: 13, marginBottom: 12 }}>{error}</p>}
       {loading ? (
@@ -1857,6 +1922,9 @@ function FlexiPayTab({ token }) {
                       <span style={{ background: col.bg, color: col.color, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                         {app.status}
                       </span>
+                      {app.created_by_admin && (
+                        <span style={{ background: '#EEF2FF', color: '#4338CA', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 999 }}>via admin</span>
+                      )}
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '4px 16px', fontSize: 13, color: 'var(--text2)' }}>
                       <span><strong>Email:</strong> {app.email}</span>
